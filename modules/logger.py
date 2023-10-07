@@ -1,4 +1,5 @@
 import logging
+import sys
 
 
 class Logger():
@@ -9,6 +10,7 @@ class Logger():
                             datefmt='%Y/%m/%d %I:%M:%S %p')
 
         self.logger = logging.getLogger(name)
+        self.logger.addHandler(logging.StreamHandler(sys.stdout))
 
     def debug(self, msg):
         self.logger.debug(msg)
