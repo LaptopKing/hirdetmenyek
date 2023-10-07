@@ -1,105 +1,24 @@
 #!/usr/bin/env python3
 
-import requests
-import json
-from pymongo import MongoClient
+from modules import logger, announcements, backup, save
 
-class downloadAnnouncements:
+if __name__ == '__main__':
+    log = logger.Logger('caching' if __name__ == '__main__' else __name__)
 
-    def __init__(self):
-    
-        self.baseUrl = "https://hirdetmenyek.gov.hu"
-        self.detailsUri = "/api/hirdetmenyek/reszletezo/"
-        self.announcementUri = "/api/hirdetmenyek"
-        self.linkToFileUri = "/api/csatolmany/"
-        self.params = {
-            "order":"desc",
-            "targy":"",
-            "kategoria":"",
-            "forrasIntezmenyNeve":"",
-            "ugyiratSzamIktatasiSzam":"",
-            "telepules":"",
-            "nev":"",
-            "idoszak":"",
-            "adottNap":"",
-            "szo":"",
-            "pageIndex":"0",
-            "pageSize":"1",
-            "sort":"kifuggesztesNapja"
-        }
-        self.totalAnnouncements = 0
-        self.rowsUrl = self.baseUrl + self.announcementUri
-        self.ids = []
-        self.announcementDatas = []
-        self.announcementFiles = []
+    try:
 
-    def makeRequest(self, url, params = None):
+        dbName = 'hirdetmenyek'
 
-        if (params is None):
+        if (not backup.backup(dbName)):
+            log.warning(f'There is no {dbName} database to backup from')
 
-            response = requests.get(url, verify=False)
-            self.checkResponseStatusCode(response)
-            return response
+        data = announcements.getAnnouncements()
+        log.info('Get announcements from https://hirdetmenyek.gov.hu/api/hirdetmenyek')
 
-        response = requests.get(url, verify=False, params=params)
-        self.checkResponseStatusCode(response)
-        return response
+        collectionName = 'Hirdetmenyek'
 
-    def checkResponseStatusCode(self, response):
+        save.save(dbName, collectionName, data)
+        log.info(f'Announcements saved to Collection {collectionName} in Database {dbName}')
 
-        if (response.status_code != 200):
-            print(f"Status code is not 200, instead it is {response.status_code}!")
-            exit()
-
-    def getTotalAnnouncements(self):
-        
-        self.params["pageSize"] = 1
-        
-        response = self.makeRequest(self.rowsUrl, params=self.params)
-        
-        self.totalAnnouncements = str(response.json()["total"] - 1)
-
-    def getAnnouncementIds(self):
-
-        self.params["pageSize"] = self.totalAnnouncements
-
-        response = self.makeRequest(self.rowsUrl, params=self.params)
-        
-        for row in response.json()["rows"]:
-            self.ids.append(row["id"])
-
-    def getAnnouncementDatas(self):
-
-        for id in self.ids:
-
-            url = self.baseUrl + self.detailsUri + str(id)
-            response = self.makeRequest(url)
-            
-            announcementData = response.json()["hirdetmenyDTO"]
-            announcementData["hirdetmenyId"] = str(id)
-            announcementFile = response.json()["csatolmanyok"][0]
-            announcementFile["hirdetmenyId"] = str(id)
-            announcementFile["path"] = self.baseUrl + self.linkToFileUri + str(announcementFile["id"])
-
-            self.announcementDatas.append(announcementData)
-            self.announcementFiles.append(announcementFile)
-
-            exit()
-
-
-
-announcementDownloadClass = downloadAnnouncements()
-announcementDownloadClass.getTotalAnnouncements()
-announcementDownloadClass.getAnnouncementIds()
-announcementDownloadClass.getAnnouncementDatas()
-
-
-"""
-
-response = requests.get("https://hirdetmenyek.gov.hu/api/hirdetmenyek?order=desc&targy=&kategoria=&forrasIntezmenyNeve=&ugyiratSzamIktatasiSzam=&telepules=&nev=&idoszak=&adottNap=&szo=&pageIndex=0&pageSize=14599&sort=kifuggesztesNapja", verify=False)
-
-total = response.json()["rows"]
-
-print(total)
-
-"""
+    except Exception:
+        log.exception(Exception)
